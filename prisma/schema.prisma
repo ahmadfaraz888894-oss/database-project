@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String
+  name      String
+  language  String    @default("en")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  families  Family[]
+}
+
+model Family {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  persons     Person[]
+  properties  Property[]
+  documents   VaultDocument[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Person {
+  id           String    @id @default(cuid())
+  familyId     String
+  family       Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  fullName     String
+  gender       String
+  isAlive      Boolean   @default(true)
+  birthDate    DateTime?
+  deathDate    DateTime?
+  isMuslim     Boolean   @default(true)
+
+  fatherId     String?
+  father       Person?   @relation("FatherChildren", fields: [fatherId], references: [id])
+  fatherOf     Person[]  @relation("FatherChildren")
+
+  motherId     String?
+  mother       Person?   @relation("MotherChildren", fields: [motherId], references: [id])
+  motherOf     Person[]  @relation("MotherChildren")
+
+  spouses      Spouse[]  @relation("PersonSpouses")
+  spousesOf    Spouse[]  @relation("SpouseOfPerson")
+
+  properties   Property[]
+  documents    VaultDocument[]
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([familyId])
+  @@index([fatherId])
+  @@index([motherId])
+}
+
+model Spouse {
+  id          String    @id @default(cuid())
+  personId    String
+  person      Person    @relation("PersonSpouses", fields: [personId], references: [id], onDelete: Cascade)
+  spouseId    String
+  spouse      Person    @relation("SpouseOfPerson", fields: [spouseId], references: [id], onDelete: Cascade)
+  marriedAt   DateTime?
+  divorcedAt  DateTime?
+  isActive    Boolean   @default(true)
+
+  @@unique([personId, spouseId])
+  @@index([personId])
+  @@index([spouseId])
+}
+
+model Property {
+  id          String    @id @default(cuid())
+  familyId    String
+  family      Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  ownerId     String
+  owner       Person    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  name        String
+  type        String
+  subtype     String?
+  value       Float
+  currency    String    @default("PKR")
+  description String?
+  location    String?
+
+  areaValue   Float?
+  areaUnit    String?
+  weightValue Float?
+  weightUnit  String?
+  quantity    Float?
+  make        String?
+  model       String?
+  year        Int?
+  regNumber   String?
+  ownership   Float?
+
+  debts       Float     @default(0)
+  funeralCost Float     @default(0)
+  bequest     Float     @default(0)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([ownerId])
+  @@index([familyId])
+  @@index([type])
+}
+
+// Family Vault — store metadata about important documents
+// (CNIC, property deeds, wasiyyah/will, marriage certificates, etc.)
+// We store the description and location/notes, not the file itself
+model VaultDocument {
+  id          String   @id @default(cuid())
+  familyId    String
+  family      Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  personId    String?  // Optional - document belongs to specific person
+  person      Person?  @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  title       String   // e.g., "CNIC of Father", "Wasiyyah dated 2024"
+  category    String   // identity, property_deed, wasiyyah, marriage, bank, insurance, medical, other
+  description String?
+  fileLocation String? // Physical location ("Bank locker #234, HBL DHA branch") or filename if stored
+  dateCreated DateTime?
+  dateExpires DateTime?
+  isImportant Boolean  @default(false)
+  notes       String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([familyId])
+  @@index([personId])
+}
